@@ -47,12 +47,17 @@ defmodule Soap.Wsdl do
 
   @spec get_schema_namespace(String.t()) :: String.t()
   defp get_schema_namespace(wsdl) do
-    {_, _, _, schema_namespace, _} =
-      wsdl
-      |> xpath(~x"//namespace::*"l)
-      |> Enum.find(fn {_, _, _, _, x} -> x == :"http://www.w3.org/2001/XMLSchema" end)
+    case Application.fetch_env!(:soap, :globals)[:absent_schema_namespace] do
+      true ->
+        []
+      _ ->
+        {_, _, _, schema_namespace, _} =
+          wsdl
+          |> xpath(~x"//namespace::*"l)
+          |> Enum.find(fn {_, _, _, _, x} -> x == :"http://www.w3.org/2001/XMLSchema" end)
 
-    schema_namespace
+        schema_namespace
+    end
   end
 
   @spec get_namespaces(String.t(), String.t(), String.t()) :: map()
@@ -168,7 +173,7 @@ defmodule Soap.Wsdl do
       |> xpath(~x".", name: ~x"./@name"s, soap_action: ~x"./#{ns("operation", soap_ns)}/@soapAction"s)
       |> Map.put(:input, get_operation_input(node, protocol_ns, soap_ns))
     end)
-    |> Enum.reject(fn x -> x[:soap_action] == "" end)
+    |> Enum.reject(fn x -> x[:soap_action] == "" && !allow_empty_soap_action() end)
   end
 
   defp get_operation_input(element, protocol_ns, soap_ns) do
@@ -236,6 +241,10 @@ defmodule Soap.Wsdl do
 
   defp soap_version, do: Application.fetch_env!(:soap, :globals)[:version]
   defp soap_version(opts) when is_list(opts), do: Keyword.get(opts, :soap_version, soap_version())
+
+  defp allow_empty_soap_action do
+    Application.fetch_env!(:soap, :globals)[:allow_empty_soap_action] || false
+  end
 
   defp ns(name, []), do: "#{name}"
   defp ns(name, namespace), do: "#{namespace}:#{name}"
